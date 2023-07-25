@@ -14,8 +14,9 @@
 **/*.pyc
 
 /client/models/
-/client/micro/trained_models
-/client/micro/untrained_models
+/client/basic/trained_models
+/client/basic/untrained_models
+/server/default/
 /server/models/
 /server/provider/
 /server/tuned/

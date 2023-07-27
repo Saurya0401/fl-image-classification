@@ -3,12 +3,14 @@ from tensorflow import keras
 from random import randrange
 from typing import Any, Callable
 
+from projects import Projects
 from utils.constants import *
 
 
 def get_cifar10_model_data(**kwargs) -> dict[str, int | dict[str, Any]]:
     print(f'Model hyper-parameters: {kwargs}\n')
-    x_shape: tuple[int, ...] = (32, 32, 3)
+    proj_spec = Projects.get_project_spec('cifar10')
+    x_shape: tuple[int, ...] = (proj_spec.image_shape[0], proj_spec.image_shape[1], proj_spec.color_channels)
     y_shape: int = 10
     hidden_layer_args = {
         'activation': keras.activations.relu,

@@ -74,7 +74,8 @@ class ServerModelGenerator(ModelManager):
             hidden_args = self.model_data[MOD_HIDDEN_ARGS]
             output_args = self.model_data[MOD_OUTPUT_ARGS]
             model: keras.Sequential = keras.Sequential([
-                keras.Input(shape=x_shape, name='input'),
+                keras.Input(shape=(np.product(x_shape),), name='input'),
+                keras.layers.Reshape(x_shape, name='input_2D_reshape'),
                 keras.layers.Conv2D(32, 3, padding='valid', **hidden_args),
                 keras.layers.MaxPooling2D(),
                 keras.layers.Conv2D(32, 3, padding='valid', **hidden_args),

@@ -1,6 +1,7 @@
 import keras_tuner as kt
 import tensorflow as tf
 from tensorflow import keras
+from numpy import product
 
 import argparse
 from pathlib import Path
@@ -36,7 +37,8 @@ class TunableClassifierModel(kt.HyperModel):
 
     def build(self, hp: kt.HyperParameters, **kwargs) -> keras.Sequential:
         model: keras.Sequential = keras.Sequential()
-        model.add(keras.Input(shape=self.x_shape, name='input'))
+        model.add(keras.Input(shape=(product(self.x_shape),), name='input'))
+        model.add(keras.layers.Reshape(self.x_shape, name='input_2D_reshape'))
         for i in range(hp.Int('num_conv2d_layers', 1, self.max_layers)):
             model.add(
                 keras.layers.Conv2D(

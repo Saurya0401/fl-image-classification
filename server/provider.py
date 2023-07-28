@@ -35,7 +35,7 @@ def update_basic_model(project: str, serving_dir: Path = SERVING_DIR, search_dir
         quantization=EdgeModelConverter.Q_CHOICES[quant_flag]
     )
     converter.generate_basic_model()
-    print(f'updated model \'{latest_basic_model}\' to \'{serving_dir}\' as \'{project}_model.tflite\'')
+    print(f'updated model \'{server_model}\' to \'{serving_dir}\' as \'{project}_model.tflite\'')
 
 
 def get_latest_model(project: str, search_dirs: Optional[list[Path]] = None) -> Path:

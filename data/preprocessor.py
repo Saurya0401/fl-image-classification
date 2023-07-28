@@ -5,11 +5,13 @@ from projects import Projects, ProjectSpec
 
 class Preprocessor:
 
-    def __init__(self, label_encoder_map: dict[str, int], image_shape: tuple[int, int], color_channels: int) -> None:
+    def __init__(self, label_encoder_map: dict[str, int], image_shape: tuple[int, int], color_channels: int,
+                 reshape_2d: bool) -> None:
         self.label_encoder_map: dict[str, int] = label_encoder_map
         self.label_decoder_map: dict[int, str] = {v: k for k, v in self.label_encoder_map.items()}
         self.image_shape: tuple[int, int] = image_shape
         self.color_channels: int = color_channels
+        self.reshape_2d: bool = reshape_2d
 
     def one_hot_encode(self, labels: np.ndarray[np.uint8]) -> np.ndarray[np.int8]:
         encoded = np.zeros((labels.shape[0], len(self.label_encoder_map)), dtype=np.int8)
@@ -30,17 +32,18 @@ class Preprocessor:
         return self.decode_labels(np.expand_dims(output, axis=0))
 
     def normalize_images(self, images: np.ndarray[np.uint8]) -> np.ndarray[np.float32]:
-        images = images.reshape((len(images), self.color_channels, *self.image_shape))
-        images = images.transpose((0, 2, 3, 1))
+        if self.reshape_2d:
+            images = images.reshape((len(images), self.color_channels, *self.image_shape))
+            images = images.transpose((0, 2, 3, 1))
         return images.astype(np.float32) / 255.
 
     def normalize_input(self, image: np.ndarray[np.uint8]) -> np.ndarray[np.float32]:
         return self.normalize_images(np.expand_dims(image, axis=0))
 
     @classmethod
-    def from_project(cls, project: str) -> 'Preprocessor':
+    def from_project(cls, project: str, reshape_2d: bool = False) -> 'Preprocessor':
         proj_spec: ProjectSpec = Projects.get_project_spec(project)
-        return cls(proj_spec.label_map, proj_spec.image_shape, proj_spec.color_channels)
+        return cls(proj_spec.label_map, proj_spec.image_shape, proj_spec.color_channels, reshape_2d)
 
 
 if __name__ == '__main__':

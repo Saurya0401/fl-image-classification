@@ -1,0 +1,70 @@
+menu "Project Configuration"
+
+    menu "WiFi Settings"
+
+        config WIFI_SSID
+            string "WiFi SSID"
+            default "Deep"
+            help
+                SSID (network name) for the example to connect to.
+
+        config WIFI_PASSWORD
+            string "WiFi Password"
+            default "Tr8i-WNq"
+            help
+                WiFi password (WPA or WPA2) for the example to use.
+
+        config MAXIMUM_RETRY
+            int "Maximum WiFi Retry Attempts"
+            default 5
+            help
+                Set a maximum number of retry attempts to prevent an infinite loop of reconnection attempts.
+
+    endmenu
+
+    menu "UART Settings"
+
+        config UART_PORT
+            int "UART Port"
+            range 0 2
+            default 0
+            help
+                The UART port to use for serial communication.
+
+        config TXD_PIN
+            int "UART Tx Pin"
+            default 1
+            help
+                The GPIO pin to use for UART Tx.
+
+        config RXD_PIN
+            int "UART Rx Pin"
+            default 3
+            help
+                The GPIO pin to use for UART Rx.
+
+    endmenu
+
+    menu "Model Options"
+
+        config EVAL_PERCENT
+            int "Evaluation Percentage"
+            default 50
+            help
+                Percentage of the dataset to use for evaluation.
+
+        config MODEL_FILEPATH
+            string "Model Filepath"
+            default "/spiffs/cifar10_model.tflite"
+            help
+                Model filepath within SPIFFS.
+        
+        config SERVER_ADDRESS
+            string "Model Server Address"
+            default "http://192.168.0.110:8050/?project=cifar10"
+            help
+                Address of the model server.
+
+    endmenu
+
+endmenu

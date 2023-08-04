@@ -16,6 +16,10 @@
 /client/models/
 /client/basic/trained_models
 /client/basic/untrained_models
+/client/micro/esp32/cifar10/build/
+/client/micro/esp32/cifar10/data/
+/client/micro/esp32/cifar10/sdkconfig
+/client/micro/esp32/cifar10/sdkconfig.old
 /server/default/
 /server/models/
 /server/provider/

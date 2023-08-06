@@ -22,11 +22,12 @@ class _ClientDataPool:
 
     def get_client_data_path(self) -> str:
         if self.curr_data_idx < self.num_client_data:
-            client_data: Path = self.client_data_paths[self.curr_data_idx]
+            client_data_path: Path = self.client_data_paths[self.curr_data_idx]
             self.curr_data_idx += 1
         else:
-            client_data: Path = self.client_data_paths[randint(0, self.num_client_data - 1)]
-        return client_data.as_posix()
+            client_data_path: Path = self.client_data_paths[randint(0, self.num_client_data - 1)]
+        print(client_data_path)
+        return client_data_path.as_posix()
 
 
 class Session:
@@ -40,9 +41,11 @@ class Session:
                  clients_fraction: float,
                  untrained: bool,
                  identifier: int,
+                 no_model_update: bool,
+                 no_plot: bool,
                  training_eval_rounds: int = 0,
-                 alt_address: Optional[str] = None) \
-            -> None:
+                 alt_address: Optional[str] = None
+                 ) -> None:
 
         self.project: str = project
         self.address: str = address
@@ -52,6 +55,8 @@ class Session:
         self.clients_fraction: float = clients_fraction
         self.untrained: bool = untrained
         self.identifier: int = identifier
+        self.no_model_update: bool = no_model_update
+        self.no_plot: bool = no_plot
         self.training_eval_rounds: int = training_eval_rounds
         self.alt_address: Optional[str] = alt_address
         self.results_dir: Path = Path(f'results/{self.project}_{self.num_rounds}_{self.num_clients}_{self.identifier}')
@@ -80,6 +85,8 @@ class Session:
             client_epochs=self.client_epochs,
             fraction=self.clients_fraction,
             identifier=self.identifier,
+            no_model_update=self.no_model_update,
+            no_plot=self.no_plot,
             project=self.project,
             untrained=self.untrained,
             training_eval_rounds=self.training_eval_rounds,
@@ -114,6 +121,8 @@ def main() -> None:
         clients_fraction=args.clients_fraction,
         untrained=args.untrained,
         identifier=args.identifier,
+        no_model_update=args.no_model_update,
+        no_plot=args.no_plot,
         training_eval_rounds=args.training_eval_rounds,
         alt_address=args.alt_address,
     )
@@ -121,7 +130,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(prog='python -m server.train')
+    parser = argparse.ArgumentParser(prog='python -m training.session')
     parser.add_argument(
         '-p', '--project',
         type=str,
@@ -172,6 +181,16 @@ if __name__ == "__main__":
         type=int,
         default=int(time()),
         help='an unique integer identifier used when generating logs and results (default: unix timestamp)'
+    )
+    parser.add_argument(
+        '--no_model_update',
+        action='store_true',
+        help='do not update server model after training'
+    )
+    parser.add_argument(
+        '--no_plot',
+        action='store_true',
+        help='do not plot training results'
     )
     parser.add_argument(
         '--alt_address',

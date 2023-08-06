@@ -18,7 +18,18 @@ from model.utilities import ModelManager
 from training.result import TrainingResult
 from training.strategy import FedStrategy
 from server.provider import update_basic_model
-from utils.constants import *
+from utils.constants import (
+    MET_ACCURACY,
+    MET_AVG_CPU_TIME,
+    MET_AVG_BYTES_DOWN,
+    MET_AVG_BYTES_UP,
+    MET_AVG_RAM_USAGE,
+    MET_CPU_TIME,
+    MET_BYTES_DOWN,
+    MET_BYTES_UP,
+    MET_RAM_USAGE,
+    MET_ROUND_DURATION
+)
 from utils.custom_types import Filepath
 
 
@@ -157,7 +168,7 @@ def get_evaluate_fn(project: str, model: keras.Sequential) \
     ds_maker: TfDatasetMaker = TfDatasetMaker(data_loader)
 
     def evaluate(
-        server_round: int, parameters: fl.common.NDArrays, config: dict[str, fl.common.Scalar],
+            server_round: int, parameters: fl.common.NDArrays, config: dict[str, fl.common.Scalar],
     ) -> Optional[tuple[float, dict[str, fl.common.Scalar]]]:
         model.set_weights(parameters)  # Update model with the latest parameters
         loss, accuracy = model.evaluate(ds_maker.test_ds)
@@ -166,8 +177,20 @@ def get_evaluate_fn(project: str, model: keras.Sequential) \
     return evaluate
 
 
-def train(address: str, rounds: int, clients: int, client_epochs: int, fraction: float, identifier: int,
-          project: str, untrained: bool, training_eval_rounds: int, results_dir: Filepath) -> TrainingResult:
+def train(
+        address: str,
+        rounds: int,
+        clients: int,
+        client_epochs: int,
+        fraction: float,
+        identifier: int,
+        project: str,
+        untrained: bool,
+        no_model_update: bool,
+        training_eval_rounds: int,
+        results_dir: Filepath,
+        no_plot: bool
+) -> TrainingResult:
     """
     Conducts federated training.
     :param address: the federated server address
@@ -180,6 +203,8 @@ def train(address: str, rounds: int, clients: int, client_epochs: int, fraction:
     :param training_eval_rounds: the nth rounds to evaluate training in
     :param untrained: whether to use an initial untrained model
     :param results_dir: the folder for storing training training_result
+    :param no_model_update: skip updating server model after training
+    :param no_plot: do not plot training results
     :return: the result of training
     """
 
@@ -204,14 +229,16 @@ def train(address: str, rounds: int, clients: int, client_epochs: int, fraction:
 
     training_result: TrainingResult = TrainingResult(hist, clients, identifier, results_dir)
     print(training_result)
-    training_result.plot()
+    if not no_plot:
+        training_result.plot()
     training_result.to_csv()
 
-    server_model: keras.Sequential = mod_manager.get_server_model()
-    trained_weights: fl.common.NDArrays = parameters_to_ndarrays(fed_server.parameters)
-    server_model.set_weights(trained_weights)
-    server_model.save(mod_manager.server_model_dir)
-    update_basic_model(project)
+    if not no_model_update:
+        server_model: keras.Sequential = mod_manager.get_server_model()
+        trained_weights: fl.common.NDArrays = parameters_to_ndarrays(fed_server.parameters)
+        server_model.set_weights(trained_weights)
+        server_model.save(mod_manager.server_model_dir)
+        update_basic_model(project)
 
     return training_result
 
@@ -229,13 +256,15 @@ def main():
         fraction=args.clients_fraction,
         untrained=args.untrained,
         identifier=args.identifier,
+        no_model_update=args.no_model_update,
         training_eval_rounds=args.training_eval_rounds,
         results_dir=Path(f'./results/{args.project}_{args.num_rounds}_{args.num_clients}_{args.identifier}'),
+        no_plot=args.no_plot,
     )
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(prog='python -m server.server')
+    parser = argparse.ArgumentParser(prog='python -m server.fed_server')
     parser.add_argument(
         '-p', '--project',
         type=str,
@@ -284,6 +313,16 @@ if __name__ == '__main__':
         type=int,
         default=int(time()),
         help='an unique integer identifier used when generating logs and results (default: unix timestamp)'
+    )
+    parser.add_argument(
+        '--no_model_update',
+        action='store_true',
+        help='skip updating server model after training'
+    )
+    parser.add_argument(
+        '--no_plot',
+        action='store_true',
+        help='do not plot training results'
     )
     parser.add_argument(
         '--training_eval_rounds',

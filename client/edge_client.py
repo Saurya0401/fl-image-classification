@@ -10,15 +10,18 @@ from time import sleep
 from typing import Optional
 
 from projects import Projects
-from utils.constants import *
+from utils.constants import (
+    MET_LOSS,
+    MET_ACCURACY,
+    MET_VAL_LOSS,
+    MET_VAL_ACC,
+    MET_CPU_TIME,
+    MET_BYTES_DOWN,
+    MET_BYTES_UP,
+    MET_RAM_USAGE
+)
 from data.loader import TfDatasetMaker
 from data.preprocessor import Preprocessor
-
-# todo: training format: 1st round: prune -> tune for local epochs -> strip pruning -> cluster
-# todo: training format: Check model weights sparsity after each round to see if pruning persists
-# todo: training format: Strip clustering after last round
-# todo: remove 'TrainableEdgeClient' as it is redundant
-# todo: install 64-bit Raspberry Pi OS on new SD card and test out trainable client
 
 
 class EdgeClient(fl.client.NumPyClient):

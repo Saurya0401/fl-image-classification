@@ -14,7 +14,13 @@ from logging import INFO
 from random import randint
 from typing import Callable, Optional, Union
 
-from utils.constants import *
+from utils.constants import (
+    MET_ACCURACY,
+    MET_CPU_TIME,
+    MET_BYTES_DOWN,
+    MET_BYTES_UP,
+    MET_RAM_USAGE
+)
 
 
 def aggregate_fit_metrics(metrics: list[tuple[int, dict[str, float]]]) -> dict[str, float]:

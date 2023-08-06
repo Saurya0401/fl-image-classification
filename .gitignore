@@ -14,6 +14,7 @@
 **/*.pyc
 
 /client/models/
+/client/model_opt_eval/
 /client/basic/trained_models
 /client/basic/untrained_models
 /client/micro/esp32/cifar10/build/

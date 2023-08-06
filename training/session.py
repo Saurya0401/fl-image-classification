@@ -41,6 +41,7 @@ class Session:
                  clients_fraction: float,
                  untrained: bool,
                  identifier: int,
+                 server_evaluation: bool,
                  no_model_update: bool,
                  no_plot: bool,
                  training_eval_rounds: int = 0,
@@ -55,6 +56,7 @@ class Session:
         self.clients_fraction: float = clients_fraction
         self.untrained: bool = untrained
         self.identifier: int = identifier
+        self.server_evaluation: bool = server_evaluation
         self.no_model_update: bool = no_model_update
         self.no_plot: bool = no_plot
         self.training_eval_rounds: int = training_eval_rounds
@@ -85,6 +87,7 @@ class Session:
             client_epochs=self.client_epochs,
             fraction=self.clients_fraction,
             identifier=self.identifier,
+            server_evaluation=self.server_evaluation,
             no_model_update=self.no_model_update,
             no_plot=self.no_plot,
             project=self.project,
@@ -121,6 +124,7 @@ def main() -> None:
         clients_fraction=args.clients_fraction,
         untrained=args.untrained,
         identifier=args.identifier,
+        server_evaluation=args.server_evaluation,
         no_model_update=args.no_model_update,
         no_plot=args.no_plot,
         training_eval_rounds=args.training_eval_rounds,
@@ -181,6 +185,11 @@ if __name__ == "__main__":
         type=int,
         default=int(time()),
         help='an unique integer identifier used when generating logs and results (default: unix timestamp)'
+    )
+    parser.add_argument(
+        '--server_evaluation',
+        action='store_true',
+        help='enable server-side evaluation while training'
     )
     parser.add_argument(
         '--no_model_update',

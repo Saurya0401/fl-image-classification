@@ -186,6 +186,7 @@ def train(
         identifier: int,
         project: str,
         untrained: bool,
+        server_evaluation: bool,
         no_model_update: bool,
         training_eval_rounds: int,
         results_dir: Filepath,
@@ -202,6 +203,7 @@ def train(
     :param project: the project name
     :param training_eval_rounds: the nth rounds to evaluate training in
     :param untrained: whether to use an initial untrained model
+    :param server_evaluation: perform server evaluation during training
     :param results_dir: the folder for storing training training_result
     :param no_model_update: skip updating server model after training
     :param no_plot: do not plot training results
@@ -216,7 +218,7 @@ def train(
         fraction_evaluate=fraction,
         initial_parameters=model.get_weights(),
         min_available_clients=clients,
-        evaluate_fn=get_evaluate_fn(project, model),
+        evaluate_fn=get_evaluate_fn(project, model) if server_evaluation else None,
         client_epochs=client_epochs,
         training_eval_rounds=training_eval_rounds
     )
@@ -232,6 +234,7 @@ def train(
     if not no_plot:
         training_result.plot()
     training_result.to_csv()
+    print(f'Training results saved to: {training_result.results_dir.absolute()}')
 
     if not no_model_update:
         server_model: keras.Sequential = mod_manager.get_server_model()
@@ -245,16 +248,15 @@ def train(
 
 def main():
     args = parser.parse_args()
-    client_epochs: Optional[int | str] = int(args.client_epochs) if \
-        (isinstance(args.client_epochs, str) and args.client_epochs.isnumeric()) else args.client_epochs
     train(
         project=args.project,
         address=args.address,
         rounds=args.num_rounds,
         clients=args.num_clients,
-        client_epochs=client_epochs,
+        client_epochs=args.client_epochs,
         fraction=args.clients_fraction,
         untrained=args.untrained,
+        server_evaluation=args.server_evaluation,
         identifier=args.identifier,
         no_model_update=args.no_model_update,
         training_eval_rounds=args.training_eval_rounds,
@@ -264,6 +266,7 @@ def main():
 
 
 if __name__ == '__main__':
+    # todo: add arg for explicitly including server metrics
     parser = argparse.ArgumentParser(prog='python -m server.fed_server')
     parser.add_argument(
         '-p', '--project',
@@ -313,6 +316,11 @@ if __name__ == '__main__':
         type=int,
         default=int(time()),
         help='an unique integer identifier used when generating logs and results (default: unix timestamp)'
+    )
+    parser.add_argument(
+        '--server_evaluation',
+        action='store_true',
+        help='enable server-side evaluation while training'
     )
     parser.add_argument(
         '--no_model_update',

@@ -1,40 +1,56 @@
-from flwr.server import History
-from matplotlib import pyplot as plt
-from pandas import read_csv, DataFrame
-
 import argparse
 import csv
 import json
 from pathlib import Path
-from typing import Optional, Union
+from typing import Final, Optional, Union
 
-from utils.constants import *
+from flwr.server import History
+from matplotlib import pyplot as plt
+from pandas import read_csv, DataFrame
+
+from utils.constants import (
+    MET_ACCURACY,
+    MET_AVG_CPU_TIME,
+    MET_AVG_BYTES_DOWN,
+    MET_AVG_BYTES_UP,
+    MET_AVG_RAM_USAGE,
+    MET_ROUND_DURATION
+)
 from utils.custom_types import Filepath
+
+_LABEL_TRAINING_ROUND: Final[str] = 'Training Round'
+_LABEL_LOSS: Final[str] = 'Loss'
+_LABEL_ACCURACY: Final[str] = 'Accuracy'
+_LABEL_AVG_CPU_TIME: Final[str] = 'Avg. CPU Time'
+_LABEL_AVG_BYTES_DOWN: Final[str] = 'Avg. Bytes Down'
+_LABEL_AVG_BYTES_UP: Final[str] = 'Avg. Bytes Up'
+_LABEL_AVG_RAM_USAGE: Final[str] = 'Avg. RAM Usage'
+_LABEL_ROUND_DURATION: Final[str] = 'Round Duration'
+_LABEL_SERVER_LOSS: Final[str] = 'Server Loss'
+_LABEL_SERVER_ACCURACY: Final[str] = 'Server Accuracy'
 
 
 class TrainingResult:
 
-    METRIC_LABELS: list[str] = [
-        'Server Round',
-        'Server Loss',
-        'Server Accuracy',
-        'Client Loss',
-        'Client Accuracy',
-        'Avg. CPU Time',
-        'Avg. Bytes Down',
-        'Avg. Bytes Up',
-        'Avg. RAM Usage',
-        'Round Duration',
-    ]
-
     def __init__(self, results_data: Union[History, DataFrame], num_clients: int, identifier: int,
                  results_dir: Filepath) -> None:
         if isinstance(results_data, History):
-            self._init_from_history(results_data)
+            results_dict = TrainingResult._init_from_history(results_data)
         elif isinstance(results_data, DataFrame):
-            self._init_from_dataframe(results_data)
+            results_dict = TrainingResult._init_from_dataframe(results_data)
         else:
             raise TypeError('`results_data` must be a flwr.server.History or a pandas.DataFrame')
+        self._rounds: list[int] = results_dict[_LABEL_TRAINING_ROUND]
+        self._loss: list[float] = results_dict[_LABEL_LOSS]
+        self._accuracy: list[float] = results_dict[_LABEL_ACCURACY]
+        self._avg_cpu_time: list[float] = results_dict[_LABEL_AVG_CPU_TIME]
+        self._avg_bytes_down: list[float] = results_dict[_LABEL_AVG_BYTES_DOWN]
+        self._avg_bytes_up: list[float] = results_dict[_LABEL_AVG_BYTES_UP]
+        self._avg_ram_usage: list[float] = results_dict[_LABEL_AVG_RAM_USAGE]
+        self._round_duration: list[float] = results_dict[_LABEL_ROUND_DURATION]
+        self._server_loss: Optional[list[float]] = results_dict.get(_LABEL_SERVER_LOSS, None)
+        self._server_accuracy: Optional[list[float]] = results_dict.get(_LABEL_SERVER_ACCURACY, None)
+        self._no_server_metrics: bool = self._server_loss is None and self._server_accuracy is None
         self.num_clients: int = num_clients
         self.identifier: int = identifier
         self.results_dir: Path = Path(results_dir)
@@ -44,86 +60,34 @@ class TrainingResult:
         self.saved_csv: Optional[Path] = None
 
     def __getitem__(self, item) -> list[float]:
-        return self._results_dict[item]
-
-    @property
-    def pre_train_client_accuracy(self) -> float:
-        return self.client_accuracies[0]
-
-    @property
-    def pre_train_client_loss(self) -> float:
-        return self.client_losses[0]
-
-    @property
-    def pre_train_server_loss(self) -> float:
-        return self.server_losses[0]
-
-    @property
-    def pre_train_server_accuracy(self) -> float:
-        return self.server_accuracies[0]
+        return self.__dict__[item]
 
     @property
     def num_rounds(self) -> int:
-        return self.server_rounds[-1]
-
-    @property
-    def server_rounds(self) -> list[int]:
-        return self._results_dict['Server Round']
-
-    @property
-    def server_losses(self) -> list[float]:
-        return self._results_dict['Server Loss']
-
-    @property
-    def server_accuracies(self) -> list[float]:
-        return self._results_dict['Server Accuracy']
-
-    @property
-    def client_losses(self) -> list[float]:
-        return self._results_dict['Client Loss']
-
-    @property
-    def client_accuracies(self) -> list[float]:
-        return self._results_dict['Client Accuracy']
-
-    @property
-    def avg_cpu_times(self) -> list[float]:
-        return self._results_dict['Avg. CPU Time']
-
-    @property
-    def avg_bytes_downs(self) -> list[float]:
-        return self._results_dict['Avg. Bytes Down']
-
-    @property
-    def avg_bytes_ups(self) -> list[float]:
-        return self._results_dict['Avg. Bytes Up']
-
-    @property
-    def avg_ram_usages(self) -> list[float]:
-        return self._results_dict['Avg. RAM Usage']
-
-    @property
-    def round_durations(self) -> list[float]:
-        return self._results_dict['Round Duration']
+        return self._rounds[-1]
 
     def __iter__(self) -> 'TrainingResult':
         return self
 
-    def __next__(self) -> tuple[int, float, float, float, float, float, float, float, float, float]:
+    def __next__(self) -> tuple[Union[int, float], ...]:
         if self._iter_idx <= self.num_rounds:
             self._iter_idx += 1
-            return (
-                self.server_rounds[self._iter_idx - 1],
-                self.server_losses[self._iter_idx - 1],
-                self.server_accuracies[self._iter_idx - 1],
-                self.client_losses[self._iter_idx - 1],
-                self.client_accuracies[self._iter_idx - 1],
-                self.avg_cpu_times[self._iter_idx - 1],
-                self.avg_bytes_downs[self._iter_idx - 1],
-                self.avg_bytes_ups[self._iter_idx - 1],
-                self.avg_ram_usages[self._iter_idx - 1],
-                self.round_durations[self._iter_idx - 1],
-            )
+            metrics: list[Union[int, float]] = [
+                self._rounds[self._iter_idx - 1],
+                self._loss[self._iter_idx - 1],
+                self._accuracy[self._iter_idx - 1],
+                self._avg_cpu_time[self._iter_idx - 1],
+                self._avg_bytes_down[self._iter_idx - 1],
+                self._avg_bytes_up[self._iter_idx - 1],
+                self._avg_ram_usage[self._iter_idx - 1],
+                self._round_duration[self._iter_idx - 1],
+            ]
+            if not self._no_server_metrics:
+                metrics.extend([
+                    self._server_loss[self._iter_idx - 1],
+                    self._server_accuracy[self._iter_idx - 1],
+                ])
+            return tuple(metrics)
         self._iter_idx: int = 0
         raise StopIteration
 
@@ -132,21 +96,34 @@ class TrainingResult:
         res_str += '-' * 82 + '\n'
         res_str += f'\nTraining info:\n\tNum Rounds = {self.num_rounds}\t\tNum Clients = {self.num_clients}\n'
         try:
-            pre_f_loss: float = self.pre_train_client_loss
-            pre_f_acc: float = self.pre_train_client_accuracy
-            pre_s_loss: float = self.pre_train_server_loss
-            pre_s_acc: float = self.pre_train_server_accuracy
-            res_str += f'\nBefore training:\n\tClient loss = {pre_f_loss:.8f}\tClient accuracy = {pre_f_acc:.8f}'
-            res_str += f'\n\tServer loss = {pre_s_loss:.8f}\tServer accuracy = {pre_s_acc:.8f}\n'
+            pre_loss: float = self._loss[0]
+            pre_acc: float = self._accuracy[0]
+            res_str += f'\nBefore training:'
+            if self._no_server_metrics:
+                res_str += f'\n\tLoss = {pre_loss:.6f}\t\tAccuracy = {pre_acc:.6f}\n'
+            else:
+                pre_s_loss: float = self._server_loss[0]
+                pre_s_acc: float = self._server_accuracy[0]
+                res_str += f'\n\tClient loss = {pre_loss:.6f}\tClient accuracy = {pre_acc:.6f}'
+                res_str += f'\n\tServer loss = {pre_s_loss:.6f}\tServer accuracy = {pre_s_acc:.6f}\n'
         except ValueError as e:
             res_str += f'\nBefore training:\n\t{e}\n'
         res_str += f'\nTraining ({self.num_rounds} rounds):\n'
-        res_str += f'Round\tServer Loss\tServer Accuracy\t\tClient Loss\tClient Accuracy\n'
+        if self._no_server_metrics:
+            res_str += f'Round\tLoss\t\tAccuracy\n'
+        else:
+            res_str += f'Round\tClient Loss\tClient Accuracy\t\tServer Loss\tServer Accuracy\n'
         res_str += '-' * 82 + '\n'
-        for s_round, s_loss, s_acc, f_loss, f_acc, _, _, _, _, _ in self:
-            if s_round == 0:
+        for metrics in self:
+            t_round, loss, acc = metrics[0], metrics[1], metrics[2]
+            if t_round == 0:
                 continue
-            res_str += f'{s_round:03d}\t{s_loss:.8f}\t{s_acc:.8f}\t\t{f_loss:.8f}\t{f_acc:.8f}\n'
+            res_str += f'{t_round:03d}\t{loss:.6f}\t{acc:.6f}'
+            if not self._no_server_metrics:
+                s_loss, s_acc = metrics[-2], metrics[-1]
+                res_str += f'\t\t{s_loss:.6f}\t{s_acc:.6f}\n'
+            else:
+                res_str += '\n'
         res_str += '-' * 82
         return res_str
 
@@ -158,63 +135,88 @@ class TrainingResult:
             params = {}
         return params
 
-    def _init_from_history(self, results_data: History):
-        self._results_dict: dict[str, list[int | float]] = {
-            metric: values for metric, values in zip(TrainingResult.METRIC_LABELS, [
-                [r[0] for r in results_data.losses_centralized],
-                [r[1] for r in results_data.losses_centralized],
-                [r[1] for r in results_data.metrics_centralized[MET_ACCURACY]],
-                [r[1] for r in results_data.losses_distributed],
-                [r[1] for r in results_data.metrics_distributed[MET_ACCURACY]],
-                [r[1] for r in results_data.metrics_distributed[MET_AVG_CPU_TIME]],
-                [r[1] for r in results_data.metrics_distributed[MET_AVG_BYTES_DOWN]],
-                [r[1] for r in results_data.metrics_distributed[MET_AVG_BYTES_UP]],
-                [r[1] for r in results_data.metrics_distributed[MET_AVG_RAM_USAGE]],
-                [r[1] for r in results_data.metrics_distributed[MET_ROUND_DURATION]],
-            ])
+    @staticmethod
+    def _init_from_history(results_data: History) -> dict[str, list[int | float]]:
+        results_dict: dict[str, list[int | float]] = {
+            _LABEL_TRAINING_ROUND: [r[0] for r in results_data.losses_distributed],
+            _LABEL_LOSS: [r[1] for r in results_data.losses_distributed],
+            _LABEL_ACCURACY: [r[1] for r in results_data.metrics_distributed[MET_ACCURACY]],
+            _LABEL_AVG_CPU_TIME: [r[1] for r in results_data.metrics_distributed[MET_AVG_CPU_TIME]],
+            _LABEL_AVG_BYTES_DOWN: [r[1] for r in results_data.metrics_distributed[MET_AVG_BYTES_DOWN]],
+            _LABEL_AVG_BYTES_UP: [r[1] for r in results_data.metrics_distributed[MET_AVG_BYTES_UP]],
+            _LABEL_AVG_RAM_USAGE: [r[1] for r in results_data.metrics_distributed[MET_AVG_RAM_USAGE]],
+            _LABEL_ROUND_DURATION: [r[1] for r in results_data.metrics_distributed[MET_ROUND_DURATION]],
         }
+        if server_loss := results_data.losses_centralized:
+            results_dict[_LABEL_SERVER_LOSS] = [r[1] for r in server_loss]
+        if (server_acc := results_data.metrics_centralized.get(MET_ACCURACY, None)) is not None:
+            results_dict[_LABEL_SERVER_ACCURACY] = [r[1] for r in server_acc]
+        return results_dict
 
-    def _init_from_dataframe(self, results_data: DataFrame):
+    @staticmethod
+    def _init_from_dataframe(results_data: DataFrame) -> dict[str, list[int | float]]:
         results_data = results_data.rename(columns={
-            'Federated Accuracy': 'Client Accuracy',
-            'Federated Loss': 'Client Loss'
+            'Server Round': _LABEL_TRAINING_ROUND,
+            'Client Accuracy': _LABEL_ACCURACY,
+            'Client Loss': _LABEL_LOSS
         })
-        self._results_dict: dict[str, list[int | float]] = results_data.to_dict(orient='list')
+        return results_data.to_dict(orient='list')
 
     def plot(self) -> None:
 
-        def _annotate_final_metrics(final_vals: dict[str, list[Union[float, str]]]):
-            if final_vals['c_loss'][0] < final_vals['s_loss'][0]:
-                final_vals['c_loss'][1], final_vals['s_loss'][1] = final_vals['s_loss'][1], final_vals['c_loss'][1]
-            if final_vals['c_acc'][0] > final_vals['s_acc'][0]:
-                final_vals['c_acc'][1], final_vals['s_acc'][1] = final_vals['s_acc'][1], final_vals['c_acc'][1]
-            for value, y_pos, color in final_vals.values():
+        def _annotate_final_metrics(final_vals_: list[list[Union[float, str]]]):
+            for ann_data in final_vals_:
+                value, y_offset, color = ann_data
                 plt.annotate(
-                    f'{value:.6f}',
+                    f'{value:.4f}',
                     xy=(1, value),
-                    xytext=(1.01, y_pos),
+                    xytext=(1.01, value + y_offset),
                     xycoords=('axes fraction', 'data'),
-                    textcoords='axes fraction',
                     color=color,
                     size=10
                 )
 
-        plot_data = self._results_dict
-        train_params = self._load_train_params()
         fig: plt.Figure = plt.figure(figsize=(8, 6))
-        line_s_loss: plt.Line2D = plt.plot('Server Round', 'Server Loss', data=plot_data)[0]
-        line_s_acc: plt.Line2D = plt.plot('Server Round', 'Server Accuracy', data=plot_data)[0]
-        line_c_loss: plt.Line2D = plt.plot('Server Round', 'Client Loss', data=plot_data)[0]
-        line_c_acc: plt.Line2D = plt.plot('Server Round', 'Client Accuracy', data=plot_data)[0]
-        _annotate_final_metrics({
-            's_acc': [line_s_acc.get_data(orig=True)[1][-1], 0.90, line_s_acc.get_color()],
-            'c_acc': [line_c_acc.get_data(orig=True)[1][-1], 0.86, line_c_acc.get_color()],
-            'c_loss': [line_c_loss.get_data(orig=True)[1][-1], 0.04, line_c_loss.get_color()],
-            's_loss': [line_s_loss.get_data(orig=True)[1][-1], 0.00, line_s_loss.get_color()]
-        })
-        plt.xlim(plot_data['Server Round'][0], plot_data['Server Round'][-1])
-        plt.ylim(0.0, 1.1)
-        plt.xlabel('Training Round')
+        plot_data = {
+            _LABEL_TRAINING_ROUND: self._rounds,
+        }
+        if self._no_server_metrics:
+            plot_data[_LABEL_LOSS] = self._loss
+            plot_data[_LABEL_ACCURACY] = self._accuracy
+            line_loss: plt.Line2D = plt.plot(_LABEL_TRAINING_ROUND, _LABEL_LOSS, data=plot_data, color='#2ca02c')[0]
+            line_acc: plt.Line2D = plt.plot(_LABEL_TRAINING_ROUND, _LABEL_ACCURACY, data=plot_data, color='#d62728')[0]
+            final_vals: list[list[Union[str, float]]] = [
+                [line_loss.get_data(orig=True)[1][-1], 0.0, line_loss.get_color()],
+                [line_acc.get_data(orig=True)[1][-1], 0.0, line_acc.get_color()],
+            ]
+        else:
+            plot_data['Client Loss'] = self._loss
+            plot_data['Client Accuracy'] = self._accuracy
+            plot_data[_LABEL_SERVER_LOSS] = self._server_loss
+            plot_data[_LABEL_SERVER_ACCURACY] = self._server_accuracy
+            line_loss: plt.Line2D = plt.plot(_LABEL_TRAINING_ROUND, 'Client Loss', data=plot_data,
+                                             color='#2ca02c')[0]
+            line_acc: plt.Line2D = plt.plot(_LABEL_TRAINING_ROUND, 'Client Accuracy', data=plot_data,
+                                            color='#d62728')[0]
+            line_s_loss: plt.Line2D = plt.plot(_LABEL_TRAINING_ROUND, _LABEL_SERVER_LOSS, data=plot_data,
+                                               color='#1f77b4')[0]
+            line_s_acc: plt.Line2D = plt.plot(_LABEL_TRAINING_ROUND, _LABEL_SERVER_ACCURACY, data=plot_data,
+                                              color='#ff7f0e')[0]
+            final_loss, final_s_loss = line_loss.get_data(orig=True)[1][-1], line_s_loss.get_data(orig=True)[1][-1]
+            final_acc, final_s_acc = line_acc.get_data(orig=True)[1][-1], line_s_acc.get_data(orig=True)[1][-1]
+            loss_y_offset: float = 0.04 if final_loss > final_s_loss else -0.04
+            acc_y_offset: float = 0.04 if final_acc > final_s_acc else -0.04
+            final_vals: list[list[Union[str, float]]] = [
+                [line_loss.get_data(orig=True)[1][-1], loss_y_offset, line_loss.get_color()],
+                [line_acc.get_data(orig=True)[1][-1], acc_y_offset, line_acc.get_color()],
+                [line_s_loss.get_data(orig=True)[1][-1], -loss_y_offset, line_s_loss.get_color()],
+                [line_s_acc.get_data(orig=True)[1][-1], -acc_y_offset, line_s_acc.get_color()],
+            ]
+        train_params = self._load_train_params()
+        _annotate_final_metrics(final_vals)
+        plt.xlim(plot_data[_LABEL_TRAINING_ROUND][0], plot_data[_LABEL_TRAINING_ROUND][-1])
+        plt.xlabel(_LABEL_TRAINING_ROUND)
+        plt.ylim(bottom=0)
         plt.legend(title="Metrics:")
         title: str = f'Federated Training Results\n({self.num_rounds} rounds, {self.num_clients} clients'
         if (client_epochs := train_params.get('client_epochs', None)) is not None:
@@ -233,7 +235,19 @@ class TrainingResult:
         csv_file: Path = save_dir_ / 'results_data.csv'
         with open(csv_file, mode='w', newline='') as file:
             writer = csv.writer(file, delimiter=',', quotechar="'", quoting=csv.QUOTE_MINIMAL)
-            writer.writerow(TrainingResult.METRIC_LABELS)
+            header: list[str] = [
+                _LABEL_TRAINING_ROUND, 
+                _LABEL_LOSS, 
+                _LABEL_ACCURACY,
+                _LABEL_AVG_CPU_TIME, 
+                _LABEL_AVG_BYTES_DOWN, 
+                _LABEL_AVG_BYTES_UP,
+                _LABEL_AVG_RAM_USAGE,
+                _LABEL_ROUND_DURATION
+            ]
+            if not self._no_server_metrics:
+                header.extend([_LABEL_SERVER_LOSS, _LABEL_SERVER_ACCURACY])
+            writer.writerow(header)
             for result in self:
                 writer.writerow(result)
         self.saved_csv = csv_file
@@ -243,11 +257,11 @@ class TrainingResult:
     def from_saved_results(cls, results_dir: Filepath) -> 'TrainingResult':
         results_dir: Path = Path(results_dir)
         file_info: list[str] = results_dir.name.split('_')
-        return cls(read_csv(results_dir / 'results_data.csv'), int(file_info[3]), int(file_info[4]), results_dir)
+        return cls(read_csv(results_dir / 'results_data.csv'), int(file_info[2]), int(file_info[3]), results_dir)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(prog='python -m utils.training_utils')
+    parser = argparse.ArgumentParser(prog='python -m training.result')
     parser.add_argument(
         '-f', '--from_saved',
         type=str,

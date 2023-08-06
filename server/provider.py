@@ -22,9 +22,8 @@ def update_basic_model(project: str, serving_dir: Path = SERVING_DIR, search_dir
     is_untrained: bool = 'untrained' in latest_basic_model
     with open(latest_basic_model, 'rb') as f:
         quant_flag: int = bytes(f.read())[-1]
-    server_model: keras.Sequential = keras.models.load_model(
-        Defaults.CLIENT_MODEL_DIR / (project + '_' + ('untrained' if is_untrained else 'trained')),
-    )
+    server_model_path: Path = Defaults.CLIENT_MODEL_DIR / (project + '_' + ('untrained' if is_untrained else 'trained'))
+    server_model: keras.Sequential = keras.models.load_model(server_model_path)
     server_model.summary()
     converter: EdgeModelConverter = EdgeModelConverter(
         project=project,
@@ -35,7 +34,7 @@ def update_basic_model(project: str, serving_dir: Path = SERVING_DIR, search_dir
         quantization=EdgeModelConverter.Q_CHOICES[quant_flag]
     )
     converter.generate_basic_model()
-    print(f'updated model \'{server_model}\' to \'{serving_dir}\' as \'{project}_model.tflite\'')
+    print(f'updated model \'{server_model_path}\' to \'{serving_dir}\' as \'{project}_model.tflite\'')
 
 
 def get_latest_model(project: str, search_dirs: Optional[list[Path]] = None) -> Path:
@@ -52,7 +51,7 @@ def get_latest_model(project: str, search_dirs: Optional[list[Path]] = None) -> 
 class BinaryDataHandler(BaseHTTPRequestHandler):
 
     def __init__(self, *args, **kwargs) -> None:
-        self.latest_dir: Path = Path(c_args.latest_dir)
+        self.latest_dir: Path = Path(c_args.serving_dir)
         if not self.latest_dir.exists():
             self.latest_dir.mkdir(parents=True)
         super().__init__(*args, **kwargs)
@@ -102,7 +101,7 @@ def main():
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(prog='python -m server.model_provider')
+    parser = argparse.ArgumentParser(prog='python -m server.provider')
     parser.add_argument(
         '-p', '--project',
         type=str,

@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Optional
+from typing import Any, Final, Optional
 
 from projects import Projects
 from data.loader import TfDatasetMaker
@@ -15,7 +15,13 @@ from model.model_data import get_model_data
 from model.optimizer import ModelOptimizer
 from model.tuner import tune_model
 from model.utilities import ModelManager
-from utils.constants import *
+from utils.constants import (
+    MOD_COMPILE_ARGS,
+    MOD_HIDDEN_ARGS,
+    MOD_OUTPUT_ARGS,
+    MOD_X_SHAPE,
+    MOD_Y_SHAPE
+)
 from utils.custom_types import Filepath
 from utils.defaults import Defaults
 
@@ -34,15 +40,15 @@ class ServerModelGenerator(ModelManager):
         self.model_data: dict[str, Any] = get_model_data(self.project, seed=self.seed, learning_rate=self.learning_rate)
         self.compile_args: dict[str, Any] = self.model_data[MOD_COMPILE_ARGS]
         self.model: Optional[keras.Sequential] = None
-        self.compressed_model: Optional[keras.Sequential] = None
+        self.optimized_model: Optional[keras.Sequential] = None
 
         np.random.seed(self.seed)
         tf.random.set_seed(self.seed)
 
     def _evaluate_compressed_model(self, comp_mode: str) -> None:
-        ModelOptimizer.print_model_weights_sparsity(self.compressed_model, comp_mode)
-        self.compressed_model.compile(**self.compile_args)
-        results = self.compressed_model.evaluate(self.test_ds, verbose=0, return_dict=True)
+        ModelOptimizer.print_model_weights_sparsity(self.optimized_model, comp_mode)
+        self.optimized_model.compile(**self.compile_args)
+        results = self.optimized_model.evaluate(self.test_ds, verbose=0, return_dict=True)
         loss, accuracy = results['loss'], results['accuracy']
         print(f'\nModel metrics after {comp_mode}:\tloss = {loss:.4f}, accuracy = {accuracy:.4f}')
 
@@ -92,15 +98,15 @@ class ServerModelGenerator(ModelManager):
             return model
 
     def optimize_model(self, tune_epochs: int, target_sparsity: float, target_clusters: int) -> None:
-        model_compressor = ModelOptimizer(self.compile_args, self.train_ds, self.val_ds)
+        model_optimizer = ModelOptimizer(self.compile_args, self.train_ds, self.val_ds)
         # prune_epochs: int = round(0.65 * tune_epochs)
         # cluster_epochs: int = tune_epochs - prune_epochs
         try:
-            self.compressed_model = keras.models.clone_model(self.model)
-            self.compressed_model.set_weights(self.model.get_weights())
-            self.compressed_model = model_compressor.prune_model(self.compressed_model, target_sparsity, tune_epochs)
+            self.optimized_model = keras.models.clone_model(self.model)
+            self.optimized_model.set_weights(self.model.get_weights())
+            self.optimized_model = model_optimizer.prune_model(self.optimized_model, target_sparsity, tune_epochs)
             self._evaluate_compressed_model('pruning')
-            self.compressed_model = model_compressor.cluster_model(self.compressed_model, target_clusters, tune_epochs)
+            self.optimized_model = model_optimizer.cluster_model(self.optimized_model, target_clusters, tune_epochs)
             self._evaluate_compressed_model('clustering')
             self._init_dir(self.server_model_dir)
             with open(self.server_model_dir / 'comp_params.json', 'w') as f:
@@ -112,7 +118,7 @@ class ServerModelGenerator(ModelManager):
                     }
                 }))
         except ValueError as e:
-            self.compressed_model = None
+            self.optimized_model = None
             print(f'Error: unable to compress model\n{e.args[0]}')
 
     def generate_server_model(self, epochs: int, tuned_model: bool = False) -> None:
@@ -124,8 +130,8 @@ class ServerModelGenerator(ModelManager):
             self.model.fit(self.train_ds, epochs=epochs, validation_data=self.val_ds)
 
     def save_server_model(self) -> None:
-        if self.compressed_model is not None:
-            self.compressed_model.save(self.server_model_dir)
+        if self.optimized_model is not None:
+            self.optimized_model.save(self.server_model_dir)
         else:
             self.model.save(self.server_model_dir)
         print(f'saved server model to \"{self.server_model_dir}\"')
@@ -288,7 +294,7 @@ def main():
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(prog='python -m utils.model_generator')
+    parser = argparse.ArgumentParser(prog='python -m model.generator')
     parser.add_argument(
         '-p', '--project',
         type=str,

@@ -71,7 +71,7 @@ class DataLoader:
         return cls(Projects.get_project_spec(project_name).data_dir, preprocessor)
 
     @staticmethod
-    def load_images_and_labels(data_file) -> tuple[np.ndarray[np.uint8], np.ndarray[np.uint8]]:
+    def load_images_and_labels(data_file: Filepath) -> tuple[np.ndarray[np.uint8], np.ndarray[np.uint8]]:
         data: dict[bytes, Any] = _unpickle_data(data_file)
         return data[b'data'], np.array([[lbl] for lbl in data[b'labels']], dtype=np.uint8)
 
